@@ -2507,37 +2507,37 @@ int last_status_row;
    }
 
    if(have_x72_dlvthermc) {
-      sprintf(out, "dLVthermc:      %g   ", x72_dlvthermc);
+      sprintf(out, "dLVthermc:      %-12g   ", x72_dlvthermc);
       vidstr(row++,col, WHITE, out);
       if(row >= max_row) goto done;
    }
 
    if(have_x72_drvthermc) {
-      sprintf(out, "dRVthermc:      %g   ", x72_drvthermc);
+      sprintf(out, "dRVthermc:      %-12g   ", x72_drvthermc);
       vidstr(row++,col, WHITE, out);
       if(row >= max_row) goto done;
    }
 
    if(have_x72_dlvolt) {
-      sprintf(out, "dLVolt:         %g   ", x72_dlvolt);
+      sprintf(out, "dLVolt:         %-12g   ", x72_dlvolt);
       vidstr(row++,col, WHITE, out);
       if(row >= max_row) goto done;
    }
 
    if(have_x72_dmvoutc) {
-      sprintf(out, "dMVoutC:        %g   ", x72_dmvoutc);
+      sprintf(out, "dMVoutC:        %-12g   ", x72_dmvoutc);
       vidstr(row++,col, WHITE, out);
       if(row >= max_row) goto done;
    }
 
    if(have_x72_dlvoutc) {
-      sprintf(out, "dLVoutC:        %g   ", x72_dlvoutc);
+      sprintf(out, "dLVoutC:        %-12g   ", x72_dlvoutc);
       vidstr(row++,col, WHITE, out);
       if(row >= max_row) goto done;
    }
 
    if(have_x72_drvoutc) {
-      sprintf(out, "dRVoutC:        %g   ", x72_drvoutc);
+      sprintf(out, "dRVoutC:        %-12g   ", x72_drvoutc);
       vidstr(row++,col, WHITE, out);
       if(row >= max_row) goto done;
    }
