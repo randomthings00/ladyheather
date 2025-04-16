@@ -102,6 +102,7 @@ u32 ebolt_serno;
 u16 sv6_week;           // SV6 info
 float sv6_tow;
 
+int x99_val_counter;    // Added for X99 Symmetricom
 
 int eom_flag;         // end-of-message flag for send_byte()
 int user_msg_num;
@@ -23547,7 +23548,11 @@ int i;
       have_x72_info = 1;
    }
 
-   s = strstr(scpi_status_line, "R>");
+   if (x72_type == X99_TYPE) {
+      s = strstr(scpi_status_line, "SRVC:");
+   } else {
+      s = strstr(scpi_status_line, "R>");
+   }
    if(s) {
       have_info |= ALL_ID_INFO;
    }
@@ -23584,7 +23589,7 @@ int flag;
       need_x72_resync = id;
       flag = 1;
    }
-   else if(strstr(scpi_status_line, "CONTROL REG") && (id != X72_GET_CREG_MSG)) {  // health response
+   else if(strstr(scpi_status_line, "ONTROL REG") && (id != X72_GET_CREG_MSG)) {  // health response
       need_x72_resync = id;
       flag = 1;
    }
@@ -23639,11 +23644,23 @@ int i;
       }
       else if(strchr(scpi_status_line, '.')) {  // floating point value
          fp = 1;
-         fp_val = x72_float(s+1);
+         if (x72_type == X99_TYPE) {
+           fp_val = atof(s+1);
+         } else {
+           fp_val = x72_float(s+1);
+         }
       }
       else {  // decimal value
          fp = 0;
-         val = (u32) atohex(s+1);
+         if (x72_type == X99_TYPE) {
+            if ( (strstr(scpi_status_line, "ONTROL REG")) || (strstr(scpi_status_line, "IFPGACTL")) ) {
+               val = (u32) atohex(s+1);
+            } else {
+               val = atoi(s+1);
+            }
+         } else {
+            val = (u32) atohex(s+1);
+         }
       }
 
       if(id == X72_GET_PPS_MSG) {  // see if PPS line also has hw discipline state
@@ -23782,37 +23799,59 @@ int i;
       }
    }
    else if(id == X72_GET_CREG_MSG) {  // "p" get control reg
-      if(strstr(scpi_status_line, "CONTROL REG")) {
-         x72_creg = val;
-         decode_x72_creg();
-         have_x72_creg = 1;
+      int process_data_x99;
+
+      process_data_x99 = 1;
+      if ( (x72_type == X99_TYPE) && (x99_val_counter==1) ) {
+         process_data_x99 = 0;
+      }
+
+      if ( process_data_x99 == 1 ) {
+         if(strstr(scpi_status_line, "ONTROL REG")) {
+            if (x72_type == X99_TYPE) x99_val_counter++;
+
+            x72_creg = val;
+            decode_x72_creg();
+            have_x72_creg = 1;
+         }
       }
    }
    else if(id == X72_GET_PPS_MSG) {  // "j" get PPS offset value
       if(strstr(scpi_status_line, "DELTA REG")) {
-         last_x72_pps = x72_pps;
-         x72_pps = val;
-         x72_ival = i = fix_x72_tics((int) val);
-         if(have_x72_pps == 0) {
-            last_ival = x72_ival;
-            last_x72_pps = x72_pps;
+         int process_data_x99;
+
+         process_data_x99 = 1;
+         if ( (x72_type == X99_TYPE) && (x99_val_counter==1) ) {
+           process_data_x99 = 0;
          }
-         x72_pps_diff = (x72_ival - last_ival);
-         last_ival = x72_ival;
 
-///      i = fix_x72_tics(x72_ival);
-         pps_offset = (OFS_SIZE) (((double) i) * 1.0E9 / x72_osc);
-last_pps_offset = pps_offset;
-tsip_error = 0;
-// if(x72_user_dis) sprintf(debug_text6, "x72_pps:%d  val:%d  lastiv:%d  i:%d  pps_offset:%g", x72_pps, val, i, last_ival, pps_offset);  //burp
-         have_pps_offset = 1;
-         have_x72_pps = 1;
-         ++x72_run_time;
+         if ( process_data_x99 == 1 ) {
+           if (x72_type == X99_TYPE) x99_val_counter++;
 
+           last_x72_pps = x72_pps;
+           x72_pps = val;
+           x72_ival = i = fix_x72_tics((int) val);
+           if(have_x72_pps == 0) {
+              last_ival = x72_ival;
+              last_x72_pps = x72_pps;
+           }
+           x72_pps_diff = (x72_ival - last_ival);
+           last_ival = x72_ival;
+
+///        i = fix_x72_tics(x72_ival);
+           pps_offset = (OFS_SIZE) (((double) i) * 1.0E9 / x72_osc);
+           last_pps_offset = pps_offset;
+           tsip_error = 0;
+//   if(x72_user_dis) sprintf(debug_text6, "x72_pps:%d  val:%d  lastiv:%d  i:%d  pps_offset:%g", x72_pps, val, i, last_ival, pps_offset);  //burp
+
+           have_pps_offset = 1;
+           have_x72_pps = 1;
+           ++x72_run_time;
+         }
       }
    }
    else if(id == X72_SET_DDS_MSG) {  // "f" set DDS frequency offset
-      if(strstr(scpi_status_line, "CHANGE FREQUENCY")) {
+      if(strstr(scpi_status_line, "HANGE FREQUENCY")) {
          x72_dds_word = fp_val;
          have_x72_dds_word = 1;
       }
@@ -23860,6 +23899,11 @@ if(0 && debug_file) {
 
 void get_x72_response(char c)
 {
+   int x99_exit;
+
+   // Used to compensate for the lack of R> prompt.
+   x99_exit = 1;
+
    // get the data returned by the HEALTH, etc messages
    if(c == 0x0D) return;
    if(c == 0x00) return;
@@ -23870,32 +23914,88 @@ void get_x72_response(char c)
 if(debug_file) fprintf(debug_file, "get_x72_response %d, line:%2d: %s\n", x72_response,x72_line, scpi_status_line);
 
       strupr(scpi_status_line);
+
       if(x72_response == X72_HEALTH_MSG) {
          parse_x72_val(x72_response);
+
+         if (x72_type == X99_TYPE) {
+            if (!(strstr(scpi_status_line, "DMV2DEMAVG")) ) {
+               x99_exit = 0;
+            }
+            x99_val_counter = 0;
+         }
       }
       else if(x72_response == X72_GET_CREG_MSG) {
          parse_x72_val(x72_response);
+
+         if (x72_type == X99_TYPE) {
+           if (!(strstr(scpi_status_line, "ONTROL REG")) ) {
+             x99_exit = 0;
+            }
+            x99_val_counter = 0;
+         }
       }
       else if(x72_response == X72_GET_PPS_MSG) {
          parse_x72_val(x72_response);
+
+         if (x72_type == X99_TYPE) {
+            x99_val_counter = 0;
+         }
       }
       else if(x72_response == X72_SET_DDS_MSG) {
          parse_x72_val(x72_response);
+
+         if (x72_type == X99_TYPE) {
+            if (!(strstr(scpi_status_line, "HANGE FREQUENCY")) ) {
+               x99_exit = 0;
+            }
+
+            x99_val_counter = 0;
+         }
       }
       else if(x72_response == X72_SET_SRVC_MSG) {
          parse_x72_val(x72_response);
+
+         if (x72_type == X99_TYPE) {
+            x99_val_counter = 0;
+         }
       }
       else if(x72_response == X72_SET_FC_MSG) {
          parse_x72_val(x72_response);
+
+         if (x72_type == X99_TYPE) {
+            if (!(strstr(scpi_status_line, "FREQUENCY")) ) {
+               x99_exit = 0;
+            }
+            x99_val_counter = 0;
+         }
       }
       else if(x72_response == X72_INFO_MSG) {
          parse_x72_info();
+
+         if (x72_type == X99_TYPE) {
+            if ( !(strstr(scpi_status_line, "SRVC:")) ) {
+               x99_exit = 0;
+            }
+            x99_val_counter = 0;
+         }
+      } else {
+// Debug message for unknown messages
+//printf ("01 - %s\n", scpi_status_line);
       }
 
-      if(strstr(scpi_status_line, "R>")) {  // command line prompt
-         x72_response = 0;
-         x72_line = 0;
-         poll_next_x72();
+      if(x72_type == X99_TYPE) {
+        if (x99_exit) {
+            x72_response = 0;
+            x72_line = 0;
+            poll_next_x72();
+        }
+      } else {
+        if(strstr(scpi_status_line, "R>")) {  // command line prompt
+           x72_response = 0;
+           x72_line = 0;
+           poll_next_x72();
+        }
       }
 
       scpi_col = 0;
@@ -23931,7 +24031,7 @@ static int row=0;
    }
 
    c = get_com_char();
-   if(c == 0x0D) return;  // ignore CR,  we end if LF char
+   if ((c == 0x0D) && (x72_type != X99_TYPE)) return;  // ignore CR,  we end if LF char
 
    if(x72_response) {     // we are reading multi-line response query results
       get_x72_response(c);
@@ -24119,6 +24219,7 @@ int x72_fw_discipline()
 {
    // returns true if the X72 supports firmware PPS disciplining
    if(rcvr_type != X72_RCVR) return 0;
+   if(x72_type == X99_TYPE)  return 0;
 
    if(1 && have_x72_fw_dis) {  // use "j" command results to determine capability
       if(x72_type == X72_TYPE)  return 72;
