@@ -19321,7 +19321,11 @@ save_adev_period();
       if(detect_rcvr_type) ;
       else if(set_baud == 0) ;
       else if(com[RCVR_PORT].user_set_baud == 0) {
-         com[RCVR_PORT].baud_rate = 57600;
+         if (x72_type == X99_TYPE) {
+            com[RCVR_PORT].baud_rate = 9600;
+         } else {
+            com[RCVR_PORT].baud_rate = 57600;
+         }
          com[RCVR_PORT].data_bits = 8;
          com[RCVR_PORT].parity = NO_PAR;
          com[RCVR_PORT].stop_bits = 1;
