@@ -53,7 +53,7 @@
   #define WINDOWS     // #define this for WIN32 environment
 #endif
 
-#define VERSION "6.14.1 Beta"
+#define VERSION "6.14.2 Beta"
 
 //
 //   "Magic" numbers (mostly used as function args and returns)
